@@ -1,0 +1,22 @@
+[project]
+name = "pyjem_service"
+version = "0.1.0"
+requires-python = ">=3.10"
+authors = [
+    {name="Cameron Devine", email="cameron.devine@alleninstitute.org"}
+]
+description = "A service for controlling PyJEM compatible JEOL TEMs."
+readme = "README.md"
+dynamic= ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+[project.scripts]
+pyjem_service = "pyjem_service.__main__:main"
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "pytest-mock",
+]
+dev = [
+  "bump-my-version",
+]
