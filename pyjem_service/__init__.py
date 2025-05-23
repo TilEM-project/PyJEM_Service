@@ -82,9 +82,9 @@ class PyJEMService:
             self.eos.SetBrightness(msg.brightness - self.brightness)
             self.brightness = msg.brightness
         if msg.mag is not None:
-            self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
             mag_table = self.LOWMAG_TABLE if msg.mag_mode == "LM" else self.MAG_TABLE
             assert msg.mag in mag_table
+            self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
             self.eos.SetSelector(mag_table[mag.mag])
         if msg.spot_size is not None:
             self.eos.SelectSpotSize(msg.spot_size)
