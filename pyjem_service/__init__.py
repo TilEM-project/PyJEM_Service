@@ -80,17 +80,18 @@ class PyJEMService:
         with self.scope_lock:
             assert TEM3.connect()
 
-        self.eos = TEM3.EOS3()
-        self.defl = TEM3.Def3()
-        self.apt = TEM3.Apt3()
-        self.stage = TEM3.Stage3()
-        self.gun = TEM3.GUN3()
+            self.eos = TEM3.EOS3()
+            self.defl = TEM3.Def3()
+            self.apt = TEM3.Apt3()
+            self.stage = TEM3.Stage3()
+            self.gun = TEM3.GUN3()
 
         self.was_in_motion = False
         self.focus = 0
         self.brightness = 0
 
-        self.x, self.y, self.z, tx, ty = self.stage.GetPos()
+        with self.scope_lock:
+            self.x, self.y, self.z, tx, ty = self.stage.GetPos()
         self.tx = tx * pi / 180
         self.ty = ty * pi / 180
 
