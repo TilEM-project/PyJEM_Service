@@ -5,8 +5,8 @@ from pigeon.utils import setup_logging
 
 def main():
     parser = argparse.ArgumentParser(prog="pyjem_service")
-    parser.add_argument("--host", type=str, help="The message broker to connect to.")
-    parser.add_argument("--port", type=int, help="The port to use for the connection.")
+    parser.add_argument("--host", type=str, default="127.0.0.1", help="The message broker to connect to.")
+    parser.add_argument("--port", type=int, default=61616, help="The port to use for the connection.")
     parser.add_argument(
         "--username",
         type=str,
