@@ -129,8 +129,17 @@ class PyJEMService:
         if msg.mag is not None:
             mag_table = self.LOWMAG_TABLE if msg.mag_mode == "LM" else self.MAG_TABLE
             assert msg.mag in mag_table
-            self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
-            self.eos.SetSelector(mag_table[mag.mag])
+            retry = 3
+            while retry:
+                try:
+                    self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
+                except TEM3.TEM3Error as e:
+                    self._logger.warning("Timeout error when changing mag mode.")
+                    if retry == 1:
+                        raise e
+                finally:
+                    retry -= 1
+            self.eos.SetSelector(mag_table[msg.mag])
         if msg.spot_size is not None:
             self.eos.SelectSpotSize(msg.spot_size)
         if msg.beam_offset is not None:
