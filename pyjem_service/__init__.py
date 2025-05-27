@@ -97,7 +97,7 @@ class PyJEMService:
         self.last_stage_status = time.time()
         self.last_scope_status = time.time()
 
-        self.connection = Pigeon("pyjem_service", host=host, port=port)
+        self.connection = Pigeon("pyjem_service", host=host, port=port, spawn_threads=True)
         self.connection.connect(username=username, password=password)
         self.connection.subscribe("stage.motion.command", self.motion_callback)
         self.connection.subscribe("stage.rotation.command", self.rotation_callback)
