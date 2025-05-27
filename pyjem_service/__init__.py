@@ -80,7 +80,7 @@ class PyJEMService:
         self.defl = TEM3.Def3()
         self.apt = TEM3.Apt3()
         self.stage = TEM3.Stage3()
-        self.gun = TEM3.Gun3()
+        self.gun = TEM3.GUN3()
 
         self.was_in_motion = False
         self.focus = 0
@@ -101,19 +101,24 @@ class PyJEMService:
 
     def motion_callback(self, msg):
         self.was_in_motion = True
-        self.stage.SetX(msg.x)
-        self.x = msg.x
-        self.stage.SetY(msg.y)
-        self.y = msg.y
-        self.stage.SetZ(msg.z)
-        self.z = msg.z
+        if msg.x is not None:
+            self.stage.SetX(msg.x)
+            self.x = msg.x
+        if msg.y is not None:
+            self.stage.SetY(msg.y)
+            self.y = msg.y
+        if msg.z is not None:
+            self.stage.SetZ(msg.z)
+            self.z = msg.z
 
     def rotation_callback(self, msg):
         self.was_in_motion = True
-        self.stage.SetTiltXAngle(msg.angle_x * 180 / pi)
-        self.tx = msg.angle_x
-        self.stage.SetTiltYAngle(msg.angle_y * 180 / pi)
-        self.ty = msg.angle_y
+        if msg.angle_x is not None:
+            self.stage.SetTiltXAngle(msg.angle_x * 180 / pi)
+            self.tx = msg.angle_x
+        if msg.angle_y is not None:
+            self.stage.SetTiltYAngle(msg.angle_y * 180 / pi)
+            self.ty = msg.angle_y
 
     def scope_callback(self, msg):
         if msg.focus is not None:
@@ -144,35 +149,37 @@ class PyJEMService:
             "scope.status",
             focus=self.focus,
             aperture=None,
-            mag_mode="MAG" if self.eos.GetFunctionMode() < 2 else "LM",
+            mag_mode="MAG" if self.eos.GetFunctionMode()[0] < 2 else "LM",
             mag=self.eos.GetMagValue()[0],
             tank_voltage=self.gun.GetHtCurrentValue()[0],
             spot_size=self.eos.GetSpotSize(),
             beam_offset=self.defl.GetCLA1(),
             screen="down" if self.defl.GetBeamBlank() else "up",
+            brightness=self.brightness,
         )
         self.last_scope_status = time.time()
 
     def stage_status(self):
-        x, y, z, tx, ty = GetPos()
+        x, y, z, tx, ty = self.stage.GetPos()
         self.connection.send(
             "stage.motion.status",
-            x=x,
-            y=y,
-            z=z,
-            in_motion=in_motion:=self.in_motion,
+            x=int(x),
+            y=int(y),
+            z=int(z),
+            in_motion=(in_motion:=self.in_motion),
         )
         self.connection.send(
             "stage.rotation.status",
             angle_x=tx * pi / 180,
             angle_y=ty * pi / 180,
+            eucentric_height=0,
             in_motion=in_motion,
         )
         self.last_stage_status = time.time()
 
     @property
     def in_motion(self):
-        x, y, z, tx, ty = GetPos()
+        x, y, z, tx, ty = self.stage.GetPos()
         return any(
             [
                 abs(s - p) > self.trans_tol
@@ -182,7 +189,7 @@ class PyJEMService:
         )
 
     def run_once(self):
-        period = 1 / 50 if in_motion:=self.in_motion or self.was_in_motion else 1
+        period = 1 / 50 if (in_motion:=self.in_motion) or self.was_in_motion else 1
         self.was_in_motion = in_motion
         if time.time() - self.last_stage_status > period:
             self.stage_status()
