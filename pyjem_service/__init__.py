@@ -139,7 +139,7 @@ class PyJEMService:
                 assert msg.mag in mag_table
                 retry = 3
                 error = True
-                while retry and not error:
+                while retry and error:
                     error = False
                     try:
                         self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
