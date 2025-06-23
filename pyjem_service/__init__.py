@@ -67,7 +67,7 @@ class PyJEMService:
         username: str = None,
         password: str = None,
         logger: logging.Logger = None,
-        trans_tol: int = 60,
+        trans_tol: int = 125,
         rot_tol: float = 0.2 * pi / 180,
     ):
         self._logger = logger if logger is not None else logging.getLogger(__name__)
@@ -203,13 +203,12 @@ class PyJEMService:
     def in_motion(self):
         with self.scope_lock:
             x, y, z, tx, ty = self.stage.GetPos()
-            return any(
-                [
+            tmp = ([
                     abs(s - p) > self.trans_tol
                     for s, p in zip((self.x, self.y, self.z), (x, y, z))
                 ]
-                + [abs(s - p) > self.rot_tol for s, p in zip((self.tx, self.ty), (tx, ty))]
-            )
+                + [abs(s - (p * pi / 180)) > self.rot_tol for s, p in zip((self.tx, self.ty), (tx, ty))])
+            return any(tmp)
 
     def run_once(self):
         period = 1 / 50 if (in_motion:=self.in_motion) or self.was_in_motion else 1
