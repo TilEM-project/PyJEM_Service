@@ -170,7 +170,7 @@ class PyJEMService:
                 "scope.status",
                 focus=self.focus,
                 aperture=None,
-                mag_mode="MAG" if self.eos.GetFunctionMode()[0] < 2 else "LM",
+                mag_mode="MAG" if self.eos.GetFunctionMode()[0] < 2 else "LOWMAG",
                 mag=self.eos.GetMagValue()[0],
                 tank_voltage=self.gun.GetHtCurrentValue()[0],
                 spot_size=self.eos.GetSpotSize(),
@@ -196,6 +196,11 @@ class PyJEMService:
                 angle_y=ty * pi / 180,
                 eucentric_height=0,
                 in_motion=in_motion,
+            )
+            self.connection.send(
+                "stage.aperture.status",
+                current_aperture=0,
+                calibrated=True,
             )
             self.last_stage_status = time.time()
 
