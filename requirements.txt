@@ -1,2 +1,2 @@
-pigeon-client
-pigeon-tem-comms
+pigeon-client==3.0.2
+pigeon-tem-comms==2.2.0

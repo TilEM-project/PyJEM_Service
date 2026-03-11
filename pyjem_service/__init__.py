@@ -189,6 +189,7 @@ class PyJEMService:
                 y=int(y),
                 z=int(z),
                 in_motion=(in_motion:=self.in_motion),
+                calibrated=True,
             )
             self.connection.send(
                 "stage.rotation.status",
