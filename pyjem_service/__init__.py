@@ -227,6 +227,9 @@ class PyJEMService:
     def run(self):
         while True:
             try:
+                if not self.connection._connected:
+                    time.sleep(0.1)
+                    continue
                 self.run_once()
             except Exception:
                 self._logger.warning("Error in run loop:", exc_info=True)
