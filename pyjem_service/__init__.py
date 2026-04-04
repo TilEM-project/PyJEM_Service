@@ -135,14 +135,16 @@ class PyJEMService:
                 self.eos.SetBrightness(msg.brightness - self.brightness)
                 self.brightness = msg.brightness
             if msg.mag is not None:
-                mag_table = self.LOWMAG_TABLE if msg.mag_mode == "LM" else self.MAG_TABLE
-                assert msg.mag in mag_table
+                is_lowmag = msg.mag_mode == "LOWMAG"
+                mag_table = self.LOWMAG_TABLE if is_lowmag else self.MAG_TABLE
+                assert msg.mag in mag_table, f"mag {msg.mag} not in {'LOWMAG' if is_lowmag else 'MAG'} table"
+                jeol_mode = "LM" if is_lowmag else "MAG1"
                 retry = 3
                 error = True
                 while retry and error:
                     error = False
                     try:
-                        self.eos.SelectFunctionMode(self.MAG_MODES[msg.mag_mode])
+                        self.eos.SelectFunctionMode(self.MAG_MODES[jeol_mode])
                     except TEM3.TEM3Error as e:
                         error = True
                         self._logger.warning("Timeout error when changing mag mode.")
