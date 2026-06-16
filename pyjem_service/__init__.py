@@ -2,7 +2,7 @@ from pigeon import Pigeon
 import time
 import logging
 from PyJEM import TEM3
-from math import pi
+from math import pi, cos, radians
 from threading import RLock
 
 
@@ -108,11 +108,13 @@ class PyJEMService:
         with self.scope_lock:
             self.was_in_motion = True
             if msg.x is not None:
-                self.stage.SetX(msg.x)
-                self.x = msg.x
+                x = msg.x / cos(self.tx)
+                self.stage.SetX(x)
+                self.x = x
             if msg.y is not None:
-                self.stage.SetY(msg.y)
-                self.y = msg.y
+                y = msg.y / cos(self.ty)
+                self.stage.SetY(y)
+                self.y = y
             if msg.z is not None:
                 self.stage.SetZ(msg.z)
                 self.z = msg.z
@@ -185,12 +187,13 @@ class PyJEMService:
     def stage_status(self):
         with self.scope_lock:
             x, y, z, tx, ty = self.stage.GetPos()
+            in_motion = self._in_motion(x, y, z, tx, ty)
             self.connection.send(
                 "stage.motion.status",
-                x=int(x),
-                y=int(y),
+                x=int(x * cos(radians(tx))),
+                y=int(y * cos(radians(ty))),
                 z=int(z),
-                in_motion=(in_motion:=self.in_motion),
+                in_motion=in_motion,
                 calibrated=True,
             )
             self.connection.send(
@@ -210,13 +213,14 @@ class PyJEMService:
     @property
     def in_motion(self):
         with self.scope_lock:
-            x, y, z, tx, ty = self.stage.GetPos()
-            tmp = ([
-                    abs(s - p) > self.trans_tol
-                    for s, p in zip((self.x, self.y, self.z), (x, y, z))
-                ]
-                + [abs(s - (p * pi / 180)) > self.rot_tol for s, p in zip((self.tx, self.ty), (tx, ty))])
-            return any(tmp)
+            return self._in_motion(*self.stage.GetPos())
+
+    def _in_motion(self, x, y, z, tx, ty):
+        return any([
+                abs(s - p) > self.trans_tol
+                for s, p in zip((self.x, self.y, self.z), (x, y, z))
+            ]
+            + [abs(s - (p * pi / 180)) > self.rot_tol for s, p in zip((self.tx, self.ty), (tx, ty))])
 
     def run_once(self):
         period = 1 / 50 if (in_motion:=self.in_motion) or self.was_in_motion else 1
