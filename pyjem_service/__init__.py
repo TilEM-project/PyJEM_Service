@@ -8,6 +8,10 @@ from threading import RLock
 
 class PyJEMService:
     BEAM_MOVE_TIME = 0.2
+    MOTION_SAMPLE_INTERVAL = 0.05  # seconds between position samples for motion detection
+    STABLE_SAMPLES = 3  # consecutive stable samples before the stage is "stopped"
+    COMMAND_START_GRACE = 1.0  # hold in_motion True this long after a command while the stage starts
+    STUCK_WARNING = 30.0  # warn if in_motion persists longer than this (likely position jitter)
     MAG_MODES = {
         "MAG1": 0,
         "MAG2": 1,
@@ -86,14 +90,16 @@ class PyJEMService:
             self.stage = TEM3.Stage3()
             self.gun = TEM3.GUN3()
 
-        self.was_in_motion = False
         self.focus = 0
         self.brightness = 0
 
+        # Last commanded target (informational only; not used for motion detection).
         with self.scope_lock:
             self.x, self.y, self.z, tx, ty = self.stage.GetPos()
         self.tx = tx * pi / 180
         self.ty = ty * pi / 180
+
+        self.init_motion_state()
 
         self.last_stage_status = time.time()
         self.last_scope_status = time.time()
@@ -106,7 +112,7 @@ class PyJEMService:
 
     def motion_callback(self, msg):
         with self.scope_lock:
-            self.was_in_motion = True
+            self.flag_command()
             if msg.x is not None:
                 self.stage.SetX(msg.x)
                 self.x = msg.x
@@ -119,7 +125,7 @@ class PyJEMService:
 
     def rotation_callback(self, msg):
         with self.scope_lock:
-            self.was_in_motion = True
+            self.flag_command()
             if msg.angle_x is not None:
                 self.stage.SetTiltXAngle(msg.angle_x * 180 / pi)
                 self.tx = msg.angle_x
@@ -207,22 +213,83 @@ class PyJEMService:
             )
             self.last_stage_status = time.time()
 
-    @property
-    def in_motion(self):
+    def init_motion_state(self):
+        self.was_in_motion = False
+        self.in_motion = False
+        self.last_sample = None
+        self.stable_count = self.STABLE_SAMPLES
+        self.last_motion_sample = 0.0
+        self.command_deadline = 0.0
+        self.awaiting_start = False
+        self.motion_started = 0.0
+        self.stuck_warned = False
+
+    def flag_command(self):
+        self.was_in_motion = True
+        self.awaiting_start = True
+        self.command_deadline = time.time() + self.COMMAND_START_GRACE
+
+    def moved(self, pos, last):
+        """True if the stage moved beyond tolerance between two GetPos samples."""
+        if last is None:
+            return False
+        x, y, z, tx, ty = pos
+        lx, ly, lz, ltx, lty = last
+        if any(abs(a - b) > self.trans_tol for a, b in ((x, lx), (y, ly), (z, lz))):
+            return True
+        return any(
+            abs((a - b) * pi / 180) > self.rot_tol for a, b in ((tx, ltx), (ty, lty))
+        )
+
+    def sample_motion(self):
+        now = time.time()
+        if now - self.last_motion_sample < self.MOTION_SAMPLE_INTERVAL:
+            return
+        self.last_motion_sample = now
         with self.scope_lock:
-            x, y, z, tx, ty = self.stage.GetPos()
-            tmp = ([
-                    abs(s - p) > self.trans_tol
-                    for s, p in zip((self.x, self.y, self.z), (x, y, z))
-                ]
-                + [abs(s - (p * pi / 180)) > self.rot_tol for s, p in zip((self.tx, self.ty), (tx, ty))])
-            return any(tmp)
+            pos = self.stage.GetPos()
+        self.update_motion(now, pos)
+
+    def update_motion(self, now, pos):
+        if self.moved(pos, self.last_sample):
+            self.stable_count = 0
+            self.awaiting_start = False
+        else:
+            self.stable_count += 1
+        self.last_sample = pos
+        stopped = self.stable_count >= self.STABLE_SAMPLES
+        starting = self.awaiting_start and now < self.command_deadline
+        self.set_in_motion((not stopped) or starting, now)
+
+    def set_in_motion(self, in_motion, now):
+        if in_motion and not self.in_motion:
+            self.motion_started = now
+            self.stuck_warned = False
+            self._logger.info("Stage motion started.")
+        elif self.in_motion and not in_motion:
+            self._logger.info(
+                f"Stage motion complete after {now - self.motion_started:.2f}s."
+            )
+        elif (
+            in_motion
+            and not self.stuck_warned
+            and now - self.motion_started > self.STUCK_WARNING
+        ):
+            self.stuck_warned = True
+            self._logger.warning(
+                f"Stage still reports in_motion after {now - self.motion_started:.1f}s. "
+                f"Last sampled position: {self.last_sample}. If the stage is physically "
+                f"stationary, its position is jittering above tolerance."
+            )
+        self.in_motion = in_motion
 
     def run_once(self):
-        period = 1 / 50 if (in_motion:=self.in_motion) or self.was_in_motion else 1
-        self.was_in_motion = in_motion
+        self.sample_motion()
+        in_motion = self.in_motion
+        period = 1 / 50 if in_motion or self.was_in_motion else 1
         if time.time() - self.last_stage_status > period:
             self.stage_status()
+            self.was_in_motion = in_motion
         if time.time() - self.last_scope_status > 1:
             self.scope_status()
 
